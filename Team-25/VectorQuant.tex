@@ -1,0 +1,232 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{listings}
+\lstset{language=Python}
+\usepackage{hyperref}
+\usepackage{minted}
+\usepackage{amsmath}
+\usepackage{tikz, pgfplots}
+\usetikzlibrary{positioning}
+\usepackage{parskip}
+\usepackage{adjustbox}
+\usepackage{amssymb}
+
+\begin{document}
+
+\title{
+    {Linear Algebra Project: Image Compression}\\
+    {\large International Institute of Information Technology, Hyderabad}\\
+    \author{Vinit Mehta, Swarang Joshi, Nijesh Raghava}
+    \vspace{1cm}
+    \includegraphics[width=3cm]{IIITH.png}
+}
+\date{}
+
+\maketitle
+
+\section{Introduction}
+Image compression is a fundamental technique in the field of computer vision and image processing. It plays a crucial role in reducing the storage requirements and transmission bandwidth for images without significant loss in visual quality. Over the years, numerous image compression techniques have been developed, aiming to achieve higher compression ratios while maintaining good perceptual quality. In recent years advanced algorithms and approaches to push the boundaries of image compression performance have emerged. This thesis focuses on exploring the use of Principal Component Analysis (PCA), Vector Quantization, Discrete Cosine Transform(DCT) and Wavelet Transform.
+
+\subsection{Vector Quantization Functions}
+
+
+In this section, we will explain the provided Python code for image compression using Vector Quantization. The code uses various libraries such as NumPy, PySimpleGUI, PIL, and sklearn.cluster.
+
+
+
+The code includes several functions for performing Vector Quantization-based image compression:
+
+\begin{itemize}
+    \item \texttt{generate\_codebook(blocks, codebook\_size)}: This function takes blocks of the image and a desired codebook size as input. It uses Mini-Batch K-means clustering to generate the codebook (representative vectors) based on the provided blocks.
+
+    \begin{code}
+    \begin{verbatim}
+    def generate_codebook(blocks, codebook_size):
+        # Flatten the blocks into vectors
+        vectors = np.reshape(blocks, (-1, block_size * block_size * blocks.shape[3]))
+
+        # Use Mini-Batch K-means clustering to generate the codebook
+        kmeans = MiniBatchKMeans(n_clusters=codebook_size, random_state=0, batch_size=codebook_size * 20)
+        kmeans.fit(vectors)
+        codebook = kmeans.cluster_centers_
+
+        # Reshape the codebook to match the shape of the blocks
+        codebook = np.reshape(codebook, (codebook_size, block_size, block_size, blocks.shape[3]))
+
+        return codebook
+    \end{verbatim}
+    \end{code}
+
+    The function first flattens the blocks into vectors. Each block represents a pixel neighborhood in the image. The vectors are then used as input for the Mini-Batch K-means clustering algorithm, which generates the codebook (representative vectors) by grouping similar vectors together. The codebook is reshaped to match the shape of the blocks.
+
+    \item \texttt{encode\_image(blocks, codebook)}: This function encodes the image by finding the closest representative vector (codeword) from the codebook for each block. It returns the indices of the assigned codewords.
+
+    \begin{code}
+    \begin{verbatim}
+    def encode_image(blocks, codebook):
+        indices = []
+        for block in blocks:
+            # Calculate the Euclidean distance between the block and each codeword
+            distances = np.sum(np.square(block - codebook), axis=(1, 2, 3))
+
+            # Find the index of the closest codeword
+            index = np.argmin(distances)
+
+            # Record the index of the assigned codeword
+            indices.append(index)
+
+        return indices
+    \end{verbatim}
+    \end{code}
+
+    The function iterates over each block in the image and calculates the Euclidean distance between the block and each codeword in the codebook. This is done by subtracting the block from each codeword and squaring the result. The distances are then summed along the axes representing the spatial dimensions (width and height) and color channels. The index of the closest codeword is determined using \texttt{np.argmin}, and the indices of the assigned codewords are recorded.
+
+    \item \texttt{load\_image(image\_path)}: This function loads an image from the specified \texttt{image\_path} using the PIL library and converts it into a NumPy array.
+
+    \begin{code}
+    \begin{verbatim}
+    def load_image(image_path):
+        image = Image.open(image_path)
+        image = image.convert('RGB')
+        image = np.array(image)
+
+        return image
+    \end{verbatim}
+    \end{code}
+
+    The function opens the image using \texttt{Image.open}, converts it to RGB color mode, and then converts it to a NumPy array.
+
+    \item \texttt{save\_image(image, save\_path)}: This function saves the provided image array to the specified \texttt{save\_path} using the PIL library.
+
+    \begin{code}
+    \begin{verbatim}
+    def save_image(image, save_path):
+        # Convert the image array back to PIL Image object
+        image = Image.fromarray(np.uint8(image))
+
+        # Save the image
+        image.save(save_path)
+    \end{verbatim}
+    \end{code}
+
+    The function converts the image array back to a PIL Image object and saves it using the \texttt{save} method.
+
+    \item \texttt{compress\_image(image, codebook\_size)}: This function performs the overall image compression process. It takes an image and the desired codebook size as input and returns the compressed image.
+
+    \begin{code}
+    \begin{verbatim}
+    def compress_image(image, codebook_size):
+        # Preprocess the image into blocks
+        blocks = preprocess_image(image)
+
+        # Generate the initial codebook
+        codebook = generate_codebook(blocks, codebook_size)
+
+        # Encode the image using vector quantization
+        indices = encode_image(blocks, codebook)
+
+        # Decode the indices to reconstruct the compressed image
+        reconstructed_image = decode_image(indices, codebook, image.shape[2], image.shape)
+
+        # Remove singleton dimensions and convert to uint8 data type
+        compressed_image = np.squeeze(reconstructed_image).astype(np.uint8)
+
+        return compressed_image
+    \end{verbatim}
+    \end{code}
+
+    The function first preprocesses the image by dividing it into blocks. Then, it generates the initial codebook using the \texttt{generate\_codebook} function. Next, it encodes the image by finding the closest codeword for each block using the \texttt{encode\_image} function. The indices of the assigned codewords are obtained. Finally, the indices are decoded to reconstruct the compressed image using the \texttt{decode\_image} function. The reconstructed image is converted to the appropriate data type and the singleton dimensions are removed.
+
+    \item \texttt{preprocess\_image(image)}: This function preprocesses the image by splitting it into blocks.
+
+    \begin{code}
+    \begin{verbatim}
+    def preprocess_image(image):
+        # Split the image into blocks
+        blocks = []
+        for i in range(0, image.shape[0], block_size):
+            for j in range(0, image.shape[1], block_size):
+                block = image[i:i+block_size, j:j+block_size, :]
+                blocks.append(block)
+
+        # Convert the blocks to a numpy array
+        blocks = np.array(blocks)
+
+        return blocks
+    \end{verbatim}
+    \end{code}
+
+    The function iterates over the image in block-size increments and extracts each block. The blocks are then converted to a NumPy array.
+
+    \item \texttt{decode\_image(indices, codebook, num\_channels, image\_shape)}: This function decodes the indices to reconstruct the compressed image. It takes the indices, codebook, number of color channels, and the original image shape as input.
+
+    \begin{code}
+    \begin{verbatim}
+    def decode_image(indices, codebook, num_channels, image_shape):
+        reconstructed_blocks = []
+        for index in indices:
+            # Retrieve the corresponding codeword from the codebook
+            codeword = codebook[index]
+
+            # Reshape the codeword into a block shape
+            block = np.reshape(codeword, (block_size, block_size, num_channels))
+
+            # Append the reconstructed block
+            reconstructed_blocks.append(block)
+
+        # Convert the reconstructed blocks into an array
+        reconstructed_image = np.array(reconstructed_blocks)
+
+        # Reshape the reconstructed image to the original shape
+        reconstructed_image = np.reshape(reconstructed_image, image_shape)
+
+        return reconstructed_image
+    \end{verbatim}
+    
+    \end{code}
+
+    \begin{equation*}
+\text{Retrieve the corresponding codeword from the codebook for each index: } \mathbf{codeword} = \mathbf{codebook}[\text{indices}]
+\end{equation*}
+
+\begin{equation*}
+\text{Reshape the codeword into block shape: } \mathbf{block} = \text{reshape}(\mathbf{codeword})
+\end{equation*}
+
+    The function iterates over each index and retrieves the corresponding codeword from the codebook. The codeword is reshaped into a block shape. The reconstructed blocks are then converted into a NumPy array and reshaped to match the original image shape.
+
+\end{itemize}
+
+\subsection{Graphical User Interface (GUI)}
+
+The code also includes a GUI using the PySimpleGUI library to provide an interactive interface for compressing and saving images. The GUI layout consists of an image display for the original and compressed images, a file browse button to select an image, a compress button, and a save button.
+
+The GUI functionality is implemented in the following code:
+
+\begin{itemize}
+    \item The code defines a GUI layout using a list of lists, where each list represents a row of elements.
+
+    \item The \texttt{compress\_image\_gui(image)} function compresses the provided image using the \texttt{compress\_image} function and updates the GUI with the compressed image.
+
+    \item The \texttt{draw\_uniform\_box(image)} function draws a uniform box around the provided image using the PIL library. This is used to visually distinguish the compressed image.
+
+    \item The main event loop of the GUI continuously listens for events and handles them accordingly. Events such as closing the window, selecting a file, compressing the image, and saving the compressed image are handled using if conditions.
+
+    \item When a file is selected, the original image is loaded and displayed in the GUI.
+
+    \item Clicking the compress button triggers the compression process. This is done in a separate thread to keep the GUI responsive.
+
+    \item After compression, the compressed image is displayed in the GUI, and the save button is enabled.
+
+    \item Clicking the save button prompts the user to select a save path for the compressed image. The compressed image is then saved using the \texttt{save\_image} function.
+
+\end{itemize}
+
+\subsection{Summary}
+
+The provided code demonstrates the implementation of image compression using Vector Quantization. It includes functions for generating a codebook, encoding an image, loading and saving images, and the overall compression process. The code also incorporates a GUI for an interactive compression experience. The linear algebra concepts used include calculating Euclidean distances between vectors, clustering using K-means, reshaping arrays, and reconstructing the compressed image using codewords from the codebook.
+
+
+
+\end{document}
